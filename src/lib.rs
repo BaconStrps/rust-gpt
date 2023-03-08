@@ -1,8 +1,11 @@
 #![allow(dead_code)]
+use std::error::Error;
+
 // this library is super unfinished
 // and incredibly unpolished
 // but it'll work for borf for now
 use serde_json::json;
+use async_trait::async_trait;
 use serde::Serialize;
 use once_cell::sync::OnceCell;
 
@@ -10,10 +13,14 @@ static RQCLIENT: OnceCell<reqwest::Client> = OnceCell::new();
 static COMPLETION_URL: &'static str = "https://api.openai.com/v1/completions";
 static CHAT_URL: &'static str = "https://api.openai.com/v1/chat/completions";
 
-pub trait CompletionLike {}
-trait SendRequest {
-    fn send(self) -> Result<CompletionResponse, reqwest::Error>;
+#[async_trait]
+pub trait SendRequest {
+    type Response;
+    type Error;
+    async fn send(self) -> Result<Self::Response, Self::Error>;
 }
+
+pub trait CompletionLike {}
 pub struct Completion;
 pub struct Chat;
 #[derive(Debug)]
@@ -121,9 +128,11 @@ pub struct Request<T> {
     state: std::marker::PhantomData<T>,
 }
 
-impl Request<Completion> {
-
-    pub async fn send_completion(self) -> Result<CompletionResponse, reqwest::Error> {
+#[async_trait]
+impl SendRequest for Request<Completion> {
+    type Response = CompletionResponse;
+    type Error = reqwest::Error;
+    async fn send(self) -> Result<Self::Response, reqwest::Error> {
         let client = RQCLIENT.get_or_init(|| reqwest::Client::new());
 
         let resp = client.post(COMPLETION_URL)
@@ -143,10 +152,19 @@ impl Request<Completion> {
             choices: json["choices"].as_array().unwrap().iter().map(|choice| CompletionChoice::from(choice.clone())).collect()
         })
     }
+    
 }
 
-impl Request<Chat> {
-    pub async fn send_chat(self) -> Result<ChatResponse, reqwest::Error> {
+#[async_trait]
+impl SendRequest for Request<Chat> {
+    type Response = ChatResponse;
+    type Error = Box<dyn Error>;
+    async fn send(self) -> Result<Self::Response, Box<dyn Error>> {
+
+        if self.to_send.find("messages").is_none() {
+            return Err("No messages in request.".into());
+        }
+
         let client = RQCLIENT.get_or_init(|| reqwest::Client::new());
 
         let resp = client.post(CHAT_URL)
@@ -168,13 +186,44 @@ impl Request<Chat> {
                 json["usage"]["completion_tokens"].as_u64().unwrap() as u32,
                 json["usage"]["total_tokens"].as_u64().unwrap() as u32,
             ),
-            messages: json["choices"].as_array().unwrap().iter().map(|choice| ChatMessage {
-                role: choice["message"]["role"].as_str().unwrap().to_string(),
-                content: choice["message"]["content"].as_str().unwrap().to_string(),
+            messages: json["choices"].as_array().unwrap().iter().map(|message| ChatMessage {
+                role: message["message"]["role"].as_str().unwrap().to_string(),
+                content: message["message"]["content"].as_str().unwrap().to_string(),
             }).collect()
         })
     }
 }
+
+// impl Request<Chat> {
+//     pub async fn send_chat(self) -> Result<ChatResponse, reqwest::Error> {
+//         let client = RQCLIENT.get_or_init(|| reqwest::Client::new());
+
+//         let resp = client.post(CHAT_URL)
+//             .header("Content-Type", "application/json")
+//             .header("Authorization", self.api_key)
+//             .body(self.to_send)
+//             .send()
+//             .await?;
+
+//         let body = resp.text().await.unwrap();
+//         let json: serde_json::Value = serde_json::from_str(&body).unwrap();
+//         Ok(ChatResponse {
+//             id: json["id"].as_str().unwrap().to_string(),
+//             object: json["object"].as_str().unwrap().to_string(),
+//             created: json["created"].as_u64().unwrap(),
+//             model: json["model"].as_str().unwrap().to_string(),
+//             usage: (
+//                 json["usage"]["prompt_tokens"].as_u64().unwrap() as u32,
+//                 json["usage"]["completion_tokens"].as_u64().unwrap() as u32,
+//                 json["usage"]["total_tokens"].as_u64().unwrap() as u32,
+//             ),
+//             messages: json["choices"].as_array().unwrap().iter().map(|choice| ChatMessage {
+//                 role: choice["message"]["role"].as_str().unwrap().to_string(),
+//                 content: choice["message"]["content"].as_str().unwrap().to_string(),
+//             }).collect()
+//         })
+//     }
+// }
 
 
 #[derive(Debug)]

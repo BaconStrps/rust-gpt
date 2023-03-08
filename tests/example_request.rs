@@ -19,7 +19,7 @@ fn example_chat_request() {
         .build()
         .unwrap();
 
-    let resphandle = rt.block_on(req.send_chat()).unwrap();
+    let resphandle = rt.block_on(req.send()).unwrap();
 
     println!("Chat: {:?}", resphandle);
 }
@@ -37,7 +37,7 @@ fn example_completion_request() {
         .build()
         .unwrap();
 
-    let resphandle = rt.block_on(req.send_completion()).unwrap();
+    let resphandle = rt.block_on(req.send()).unwrap();
 
     println!("Completion: {:?}", resphandle);
 }
