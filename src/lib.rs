@@ -284,11 +284,7 @@ impl RequestBuilder<ChatState> {
         self
     }
 
-    /// Sets the chat parameters.
-    /// Note: this will overwrite any existing chat parameters.  
-    /// This should be called before setting anything else.
-    /// This method is recommended not to use directly.
-    pub fn chat_parameters(mut self, chat_parameters: chat::ChatParameters) -> Self {
+    fn chat_parameters(mut self, chat_parameters: chat::ChatParameters) -> Self {
         self.req["temperature"] = json!(chat_parameters.temperature);
         self.req["top_p"] = json!(chat_parameters.top_p);
         self.req["frequency_penalty"] = json!(chat_parameters.frequency_penalty);
