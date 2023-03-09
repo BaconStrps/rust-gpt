@@ -53,7 +53,7 @@ use std::{error::Error, fmt::Display};
 
 use serde_json::json;
 use async_trait::async_trait;
-use serde::{Serialize, Deserialize};
+use serde::{Serialize, Deserialize, ser::SerializeStruct};
 use once_cell::sync::OnceCell;
 
 static RQCLIENT: OnceCell<reqwest::Client> = OnceCell::new();
@@ -116,22 +116,11 @@ impl ToString for ChatModel {
 pub struct CompletionChoice {
     pub text: String,
     pub index: u32,
-    pub logprobs: u32,
+    pub logprobs: Option<u64>,
     pub finish_reason: String,
 }
 
-impl From<serde_json::Value> for CompletionChoice {
-    fn from(value: serde_json::Value) -> Self {
-        Self {
-            text: value["text"].as_str().unwrap().to_string(),
-            index: value["index"].as_u64().unwrap() as u32,
-            logprobs: value["logprobs"].as_u64().unwrap_or_default() as u32,
-            finish_reason: value["finish_reason"].as_str().unwrap_or_default().to_string(),
-        }
-    }
-}
-
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Deserialize)]
 /// Represents a response from the completion API.
 pub struct CompletionResponse {
     pub id: String,
@@ -141,18 +130,45 @@ pub struct CompletionResponse {
     pub choices: Vec<CompletionChoice>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+impl Serialize for CompletionResponse {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let mut state = serializer.serialize_struct("CompletionResponse", 5)?;
+        state.serialize_field("id", &self.id)?;
+        state.serialize_field("object", &self.object)?;
+        state.serialize_field("created", &self.created)?;
+        state.serialize_field("model", &self.model)?;
+        state.serialize_field("choices", &self.choices)?;
+        state.end()
+    }
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct Usage {
+    pub prompt_tokens: u32,
+    pub completion_tokens: u32,
+    pub total_tokens: u32,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct ChatChoice {
+    index: u32,
+    message: ChatMessage,
+    finish_reason: String,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
 /// Represents a response from the chat API.
 pub struct ChatResponse {
     pub id: String,
     pub object: String,
     pub created: u64,
-    pub model: String,
-    pub usage: (u32, u32, u32),
-    pub messages: Vec<ChatMessage>,
+    pub choices: Vec<ChatChoice>,
+    pub usage: Usage,
 }
-
-#[derive(Debug, Deserialize)]
+#[derive(Debug)]
 /// Represents one of the roles that can be used in the chat API.
 pub enum Role {
     User,
@@ -166,6 +182,16 @@ impl Serialize for Role {
         S: serde::Serializer,
     {
         serializer.serialize_str(&self.to_string())
+    }
+}
+
+impl<'de> Deserialize<'de> for Role {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+        where
+            D: serde::Deserializer<'de> {
+        let s = String::deserialize(deserializer)?;
+
+        Role::try_from(s.as_str()).map_err(serde::de::Error::custom)
     }
 }
 
@@ -245,13 +271,7 @@ impl SendRequest for Request<Completion> {
             return Err(error.into());
         }
 
-        Ok(CompletionResponse {
-            id: json["id"].as_str().unwrap().to_string(),
-            object: json["object"].as_str().unwrap().to_string(),
-            created: json["created"].as_u64().unwrap(),
-            model: json["model"].as_str().unwrap().to_string(),
-            choices: json["choices"].as_array().unwrap().iter().map(|choice| CompletionChoice::from(choice.clone())).collect()
-        })
+        Ok(CompletionResponse::deserialize(json)?)
     }
     
 }
@@ -282,23 +302,23 @@ impl SendRequest for Request<Chat> {
             return Err(error.into());
         }
 
-        eprintln!("{}", serde_json::to_string_pretty(&json).unwrap());
+        Ok(ChatResponse::deserialize(json)?)
 
-        Ok(ChatResponse {
-            id: json["id"].as_str().unwrap().to_string(),
-            object: json["object"].as_str().unwrap().to_string(),
-            created: json["created"].as_u64().unwrap(),
-            model: json["model"].as_str().unwrap().to_string(),
-            usage: (
-                json["usage"]["prompt_tokens"].as_u64().unwrap() as u32,
-                json["usage"]["completion_tokens"].as_u64().unwrap() as u32,
-                json["usage"]["total_tokens"].as_u64().unwrap() as u32,
-            ),
-            messages: json["choices"].as_array().unwrap().iter().map(|message| ChatMessage {
-                role: message["message"]["role"].as_str().unwrap().try_into().unwrap(),
-                content: message["message"]["content"].as_str().unwrap().to_string(),
-            }).collect()
-        })
+        // Ok(ChatResponse {
+        //     id: json["id"].as_str().unwrap().to_string(),
+        //     object: json["object"].as_str().unwrap().to_string(),
+        //     created: json["created"].as_u64().unwrap(),
+        //     model: json["model"].as_str().unwrap().to_string(),
+        //     usage: (
+        //         json["usage"]["prompt_tokens"].as_u64().unwrap() as u32,
+        //         json["usage"]["completion_tokens"].as_u64().unwrap() as u32,
+        //         json["usage"]["total_tokens"].as_u64().unwrap() as u32,
+        //     ),
+        //     choices: json["choices"].as_array().unwrap().iter().map(|message| ChatMessage {
+        //         role: message["message"]["role"].as_str().unwrap().try_into().unwrap(),
+        //         content: message["message"]["content"].as_str().unwrap().to_string(),
+        //     }).collect()
+        // })
     }
 }
 
