@@ -76,24 +76,25 @@ pub trait SendRequest {
 #[doc(hidden)]
 pub trait CompletionLike {}
 #[doc(hidden)]
-pub struct Completion;
+pub struct CompletionState;
 #[doc(hidden)]
-pub struct Chat;
-#[derive(Debug)]
+pub struct ChatState;
+#[derive(Debug, Clone)]
 /// The current completion models.
 pub enum CompletionModel{
     TextDavinci003,
     TextDavinci002,
     CodeDavinci002,
 }
+#[derive(Debug, Clone)]
 /// The current chat models.
 pub enum ChatModel {
     Gpt35Turbo,
     GPT35Turbo0301,
 }
 
-impl CompletionLike for Completion {}
-impl CompletionLike for Chat {}
+impl CompletionLike for CompletionState {}
+impl CompletionLike for ChatState {}
 
 impl ToString for CompletionModel {
     fn to_string(&self) -> String {
@@ -123,7 +124,7 @@ pub struct Request<T> {
 }
 
 #[async_trait]
-impl SendRequest for Request<Completion> {
+impl SendRequest for Request<CompletionState> {
     type Response = completion::CompletionResponse;
     type Error = Box<dyn Error>;
     async fn send(self) -> Result<Self::Response, Box<dyn Error>> {
@@ -139,8 +140,8 @@ impl SendRequest for Request<Completion> {
         let body = resp.text().await.unwrap();
         let json: serde_json::Value = serde_json::from_str(&body).unwrap();
 
-        if let Some(error) = json["error"].as_str() {
-            return Err(error.into());
+        if !json["error"].is_null() {
+            return Err(serde_json::to_string_pretty(&json).unwrap().into());
         }
 
         Ok(completion::CompletionResponse::deserialize(json)?)
@@ -149,7 +150,7 @@ impl SendRequest for Request<Completion> {
 }
 
 #[async_trait]
-impl SendRequest for Request<Chat> {
+impl SendRequest for Request<ChatState> {
     type Response = chat::ChatResponse;
     type Error = Box<dyn Error>;
     async fn send(self) -> Result<Self::Response, Box<dyn Error>> {
@@ -170,9 +171,8 @@ impl SendRequest for Request<Chat> {
         let body = resp.text().await.unwrap();
         let json: serde_json::Value = serde_json::from_str(&body).unwrap();
 
-        if let Some(error) = json["error"]["message"].as_str() {
-            eprintln!("{}", json);
-            return Err(error.into());
+        if !json["error"].is_null() {
+            return Err(serde_json::to_string_pretty(&json).unwrap().into());
         }
 
         Ok(chat::ChatResponse::deserialize(json)?)
@@ -254,16 +254,21 @@ impl<C: CompletionLike> RequestBuilder<C> {
         self.req["n"] = json!(n);
         self
     }
+
+    pub fn user(mut self, user: String) -> Self {
+        self.req["user"] = json!(user);
+        self
+    }
 }
 
-impl RequestBuilder<Completion> {
+impl RequestBuilder<CompletionState> {
     /// Set the prompt parameter.
     pub fn prompt<T: ToString>(mut self, prompt: T) -> Self {
         self.req["prompt"] = json!(prompt.to_string());
         self
     }
     /// Builds a completion request.
-    pub fn build_completion(self) -> Request<Completion> {
+    pub fn build_completion(self) -> Request<CompletionState> {
         Request {
             api_key: self.api_key,
             to_send: self.req.to_string(),
@@ -272,14 +277,31 @@ impl RequestBuilder<Completion> {
     }
 }
 
-impl RequestBuilder<Chat> {
+impl RequestBuilder<ChatState> {
     /// Set the messages parameter.
     pub fn messages(mut self, messages: Vec<chat::ChatMessage>) -> Self {
         self.req["messages"] = json!(messages);
         self
     }
+
+    /// Sets the chat parameters.
+    /// Note: this will overwrite any existing chat parameters.  
+    /// This should be called before setting anything else.
+    /// This method is recommended not to use directly.
+    pub fn chat_parameters(mut self, chat_parameters: chat::ChatParameters) -> Self {
+        self.req["temperature"] = json!(chat_parameters.temperature);
+        self.req["top_p"] = json!(chat_parameters.top_p);
+        self.req["frequency_penalty"] = json!(chat_parameters.frequency_penalty);
+        self.req["presence_penalty"] = json!(chat_parameters.presence_penalty);
+        self.req["max_tokens"] = json!(chat_parameters.max_tokens);
+        if let Some(user) = chat_parameters.user {
+            self.req["user"] = json!(user);
+        }
+        self
+    }
+
     /// Builds a chat request.
-    pub fn build_chat(self) -> Request<Chat> {
+    pub fn build_chat(self) -> Request<ChatState> {
         Request {
             api_key: self.api_key,
             to_send: self.req.to_string(),

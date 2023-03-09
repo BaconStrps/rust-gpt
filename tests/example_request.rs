@@ -21,7 +21,7 @@ fn example_chat_request() {
 
     let resphandle = rt.block_on(req.send()).unwrap();
 
-    println!("Chat: {:?}", resphandle);
+    // println!("Chat: {:?}", resphandle);
 }
 
 
@@ -39,5 +39,39 @@ fn example_completion_request() {
 
     let resphandle = rt.block_on(req.send()).unwrap();
 
-    println!("Completion: {:?}", resphandle);
+    // println!("Completion: {:?}", resphandle);
+}
+
+
+
+#[test]
+fn chat_experimental_test() {
+
+    let chat = ChatBuilder::new(ChatModel::Gpt35Turbo, std::env::var("OPENAI_API_KEY").unwrap())
+        .max_tokens(128)
+        .system(ChatMessage{
+            role: Role::System,
+            content: "You are a dog with an incredible amount of trivia knowledge".to_string()
+        })
+        .build();
+
+    let rt = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .unwrap();
+
+    rt.block_on(chat.ask("Give me some crab facts")).unwrap();
+
+    let response = rt.block_on(chat.get_response(None)).unwrap();
+    let messages = rt.block_on(chat.get_messages());
+
+    println!("Messages 1: \n{:?}", messages);
+
+    rt.block_on(chat.ask("Can you rephrase what you just told me?")).unwrap();
+
+    let response = rt.block_on(chat.get_response(None)).unwrap();
+    let messages = rt.block_on(chat.get_messages());
+
+    println!("Messages 2: \n{:?}", messages);
+
 }
