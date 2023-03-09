@@ -53,8 +53,11 @@ use std::{error::Error, fmt::Display};
 
 use serde_json::json;
 use async_trait::async_trait;
-use serde::{Serialize, Deserialize, ser::SerializeStruct};
+use serde::{Deserialize};
 use once_cell::sync::OnceCell;
+
+pub mod chat;
+pub mod completion;
 
 static RQCLIENT: OnceCell<reqwest::Client> = OnceCell::new();
 static COMPLETION_URL: &'static str = "https://api.openai.com/v1/completions";
@@ -111,137 +114,6 @@ impl ToString for ChatModel {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-/// Represents one of the choices returned by the completion API.
-pub struct CompletionChoice {
-    pub text: String,
-    pub index: u32,
-    pub logprobs: Option<u64>,
-    pub finish_reason: String,
-}
-
-#[derive(Debug, Deserialize)]
-/// Represents a response from the completion API.
-pub struct CompletionResponse {
-    pub id: String,
-    pub object: String,
-    pub created: u64,
-    pub model: String,
-    pub choices: Vec<CompletionChoice>,
-}
-
-impl Serialize for CompletionResponse {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        let mut state = serializer.serialize_struct("CompletionResponse", 5)?;
-        state.serialize_field("id", &self.id)?;
-        state.serialize_field("object", &self.object)?;
-        state.serialize_field("created", &self.created)?;
-        state.serialize_field("model", &self.model)?;
-        state.serialize_field("choices", &self.choices)?;
-        state.end()
-    }
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-pub struct Usage {
-    pub prompt_tokens: u32,
-    pub completion_tokens: u32,
-    pub total_tokens: u32,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-pub struct ChatChoice {
-    index: u32,
-    message: ChatMessage,
-    finish_reason: String,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-/// Represents a response from the chat API.
-pub struct ChatResponse {
-    pub id: String,
-    pub object: String,
-    pub created: u64,
-    pub choices: Vec<ChatChoice>,
-    pub usage: Usage,
-}
-#[derive(Debug)]
-/// Represents one of the roles that can be used in the chat API.
-pub enum Role {
-    User,
-    Assistant,
-    System,
-}
-
-impl Serialize for Role {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        serializer.serialize_str(&self.to_string())
-    }
-}
-
-impl<'de> Deserialize<'de> for Role {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-        where
-            D: serde::Deserializer<'de> {
-        let s = String::deserialize(deserializer)?;
-
-        Role::try_from(s.as_str()).map_err(serde::de::Error::custom)
-    }
-}
-
-impl ToString for Role {
-    fn to_string(&self) -> String {
-        match self {
-            Role::User => "user",
-            Role::Assistant => "assistant",
-            Role::System => "system",
-        }.to_string()
-    }
-}
-
-impl TryFrom<&str> for Role {
-    type Error = Box<dyn Error>;
-
-    fn try_from(value: &str) -> Result<Self, Self::Error> {
-        match value {
-            "user" => Ok(Role::User),
-            "assistant" => Ok(Role::Assistant),
-            "system" => Ok(Role::System),
-            _ => Err("Invalid Role".into()),
-        }
-    }
-}
-#[derive(Debug, Serialize, Deserialize)]
-/// Represents one of the messages sent to or received from the chat API.
-pub struct ChatMessage {
-    pub role: Role,
-    pub content: String,
-}
-
-impl Into<serde_json::Value> for ChatMessage {
-    fn into(self) -> serde_json::Value {
-        json!({
-            "role": self.role.to_string(),
-            "content": self.content
-        })
-    }
-}
-
-impl ToString for ChatMessage {
-    fn to_string(&self) -> String {
-        json!({
-            "role": self.role,
-            "content": self.content
-        }).to_string()
-    }
-}
-
 #[derive(Debug)]
 /// A generic request which can be used to send requests to the OpenAI API.
 pub struct Request<T> {
@@ -252,7 +124,7 @@ pub struct Request<T> {
 
 #[async_trait]
 impl SendRequest for Request<Completion> {
-    type Response = CompletionResponse;
+    type Response = completion::CompletionResponse;
     type Error = Box<dyn Error>;
     async fn send(self) -> Result<Self::Response, Box<dyn Error>> {
         let client = RQCLIENT.get_or_init(|| reqwest::Client::new());
@@ -271,14 +143,14 @@ impl SendRequest for Request<Completion> {
             return Err(error.into());
         }
 
-        Ok(CompletionResponse::deserialize(json)?)
+        Ok(completion::CompletionResponse::deserialize(json)?)
     }
     
 }
 
 #[async_trait]
 impl SendRequest for Request<Chat> {
-    type Response = ChatResponse;
+    type Response = chat::ChatResponse;
     type Error = Box<dyn Error>;
     async fn send(self) -> Result<Self::Response, Box<dyn Error>> {
 
@@ -299,10 +171,11 @@ impl SendRequest for Request<Chat> {
         let json: serde_json::Value = serde_json::from_str(&body).unwrap();
 
         if let Some(error) = json["error"]["message"].as_str() {
+            eprintln!("{}", json);
             return Err(error.into());
         }
 
-        Ok(ChatResponse::deserialize(json)?)
+        Ok(chat::ChatResponse::deserialize(json)?)
 
         // Ok(ChatResponse {
         //     id: json["id"].as_str().unwrap().to_string(),
@@ -401,7 +274,7 @@ impl RequestBuilder<Completion> {
 
 impl RequestBuilder<Chat> {
     /// Set the messages parameter.
-    pub fn messages(mut self, messages: Vec<ChatMessage>) -> Self {
+    pub fn messages(mut self, messages: Vec<chat::ChatMessage>) -> Self {
         self.req["messages"] = json!(messages);
         self
     }

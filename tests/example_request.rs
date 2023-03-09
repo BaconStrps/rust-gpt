@@ -1,5 +1,5 @@
 
-use rust_gpt::*;
+use rust_gpt::{*, chat::*};
 
 #[test]
 fn example_chat_request() {
