@@ -5,10 +5,10 @@ use rust_gpt::*;
 fn example_chat_request() {
     let req = RequestBuilder::new(ChatModel::Gpt35Turbo, std::env::var("OPENAI_API_KEY").unwrap())
         .messages(vec![ChatMessage{
-            role: "system".to_string(),
+            role: Role::System,
             content: "You are a helpful assistant.".to_string()
         }, ChatMessage{
-            role: "user".to_string(),
+            role: Role::User,
             content: "Who started World War 2?".to_string()
         }])
         .max_tokens(128)

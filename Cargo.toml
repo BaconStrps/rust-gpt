@@ -1,7 +1,15 @@
 [package]
 name = "rust-gpt"
-version = "0.1.1"
+version = "0.0.1"
 edition = "2021"
+readme = "README.md"
+license = "MIT"
+description = "A library for interaction with the Completion/Chat OpenAI API."
+repository = "https://github.com/BaconStrps/rust-gpt"
+keywords = ["gpt", "openai", "api", "completion", "chat"]
+categories = ["api-bindings", "asynchronous"]
+exclude = ["tests"]
+
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
