@@ -59,10 +59,10 @@ impl ToString for ChatModel {
 
 #[derive(Debug)]
 pub struct CompletionChoice {
-    text: String,
-    index: u32,
-    logprobs: u32,
-    finish_reason: String,
+    pub text: String,
+    pub index: u32,
+    pub logprobs: u32,
+    pub finish_reason: String,
 }
 
 impl From<serde_json::Value> for CompletionChoice {
@@ -78,21 +78,21 @@ impl From<serde_json::Value> for CompletionChoice {
 
 #[derive(Debug)]
 pub struct CompletionResponse {
-    id: String,
-    object: String,
-    created: u64,
-    model: String,
-    choices: Vec<CompletionChoice>,
+    pub id: String,
+    pub object: String,
+    pub created: u64,
+    pub model: String,
+    pub choices: Vec<CompletionChoice>,
 }
 
 #[derive(Debug)]
 pub struct ChatResponse {
-    id: String,
-    object: String,
-    created: u64,
-    model: String,
-    usage: (u32, u32, u32),
-    messages: Vec<ChatMessage>,
+    pub id: String,
+    pub object: String,
+    pub created: u64,
+    pub model: String,
+    pub usage: (u32, u32, u32),
+    pub messages: Vec<ChatMessage>,
 }
 
 
