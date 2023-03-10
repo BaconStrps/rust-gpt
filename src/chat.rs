@@ -20,14 +20,14 @@ use crate::SendRequest;
 /// Represents one of the messages sent to or received from the chat API.
 pub struct ChatMessage {
     pub role: Role,
-    pub content: String,
+    pub content: Option<String>,
 }
 
 impl Default for ChatMessage {
     fn default() -> Self {
         Self {
             role: Role::User,
-            content: String::new(),
+            content: Some(String::new()),
         }
     }
 }
@@ -287,7 +287,7 @@ impl Chat {
     pub async fn ask(&self, message: &str) -> Result<(), Box<dyn Error>> {
         let msg = ChatMessage {
             role: Role::User,
-            content: message.to_string(),
+            content: Some(message.to_string()),
         };
 
         self.message_queue.lock().await.push_back(msg);

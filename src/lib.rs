@@ -177,6 +177,8 @@ impl SendRequest for Request<ChatState> {
             return Err(serde_json::to_string_pretty(&json).unwrap().into());
         }
 
+        
+
         Ok(chat::ChatResponse::deserialize(json)?)
 
         // Ok(ChatResponse {
