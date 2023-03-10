@@ -9,11 +9,11 @@ fn example_chat_request() {
     .messages(vec![
         ChatMessage {
             role: Role::System,
-            content: "You are a helpful assistant.".to_string(),
+            content: "You are a helpful assistant.".to_string().into(),
         },
         ChatMessage {
             role: Role::User,
-            content: "Who started World War 2?".to_string(),
+            content: "Who started World War 2?".to_string().into(),
         },
     ])
     .max_tokens(128)
@@ -58,7 +58,7 @@ fn chat_experimental_test() {
     .max_tokens(128)
     .system(ChatMessage {
         role: Role::System,
-        content: "You are a dog with an incredible amount of trivia knowledge".to_string(),
+        content: "You are a dog with an incredible amount of trivia knowledge".to_string().into(),
     })
     .build();
 

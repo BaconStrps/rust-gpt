@@ -63,6 +63,34 @@ static RQCLIENT: OnceCell<reqwest::Client> = OnceCell::new();
 static COMPLETION_URL: &str = "https://api.openai.com/v1/completions";
 static CHAT_URL: &str = "https://api.openai.com/v1/chat/completions";
 
+#[derive(Debug, Clone)]
+struct JsonParseError {
+    json_string: String,
+}
+
+#[derive(Debug)]
+enum SendRequestError {
+    ReqwestError(reqwest::Error),
+    JsonError(JsonParseError),
+}
+
+impl Display for SendRequestError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            SendRequestError::ReqwestError(e) => write!(f, "Reqwest error: {}", e),
+            SendRequestError::JsonError(e) => write!(f, "Json error: {}", e),
+        }
+    }
+}
+
+impl Display for JsonParseError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Could not parse json: {}", self.json_string)
+    }
+}
+
+impl Error for SendRequestError {}
+
 #[async_trait]
 /// A trait for abstracting sending requests between APIs.
 pub trait SendRequest {
