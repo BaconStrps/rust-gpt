@@ -252,7 +252,7 @@ impl Chat {
             chat_parameters,
             api_key: api_key.to_string(),
             model,
-            len,
+            len: len * 2 + 2,
             messages: Mutex::new(VecDeque::new()),
             message_queue: Mutex::new(VecDeque::new()),
         }
@@ -290,7 +290,7 @@ impl Chat {
 
         // * 2 because we don't count assistant messages
         // + 2 because we don't count the system message and the message we're about to send
-        if messages.len() * 2 + 2 >= self.len {
+        if messages.len() >= self.len {
             messages.pop_front();
             messages.pop_front();
             // pop the oldest user + assistant message
