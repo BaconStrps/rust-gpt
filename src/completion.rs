@@ -1,9 +1,8 @@
 //! # Completion API.
-//! 
+//!
 //! Includes the structs that represent a response from the Completion API.
 
-use serde::{Deserialize, Serialize, ser::SerializeStruct};
-
+use serde::{ser::SerializeStruct, Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
 /// Represents one of the choices returned by the completion API.

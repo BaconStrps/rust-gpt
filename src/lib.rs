@@ -6,7 +6,7 @@
 //! use rust_gpt::RequestBuilder;
 //! use rust_gpt::CompletionModel;
 //! use rust_gpt::SendRequest;
-//! 
+//!
 //! #[tokio::main]
 //! async fn main() {
 //!     let req = RequestBuilder::new(CompletionModel::TextDavinci003, "YOUR_API_KEY")
@@ -16,52 +16,52 @@
 //!     println!("My bot replied with: \"{:?}\"", response);
 //! }
 //!```
-//! 
+//!
 //! ## General Usage
 //! You will most likely just use the [`RequestBuilder`] to create a request. You can then use the [`SendRequest`] trait to send the request.
 //! Right now only the completion and chat endpoints are supported.
 //! These two endpoints require different parameters, so you will need to use the [`build_completion`] and [`build_chat`] methods respectively.  
-//! 
+//!
 //! [`RequestBuilder`] can take any type that implements [`ToString`] as the model input and any type that implements [`Display`] as the API key.
-//! 
+//!
 //! [`build_completion`]: ./struct.RequestBuilder.html#method.build_completion
 //! [`build_chat`]: ./struct.RequestBuilder.html#method.build_chat
-//! 
+//!
 //! ## Completion
 //! The completion endpoint requires a [`prompt`] parameter. You can set this with the [`prompt`] method which takes any type that implements [`ToString`].
-//! 
+//!
 //! [`prompt`]: ./struct.RequestBuilder.html#method.prompt
-//! 
+//!
 //! ## Chat
 //! The chat endpoint is a little more complicated. It requires a [`messages`] parameter which is a list of messages.
 //! These messages are represented by the [`ChatMessage`] struct. You can create a [`ChatMessage`] with the [`new`] method.
-//! 
+//!
 //! [`messages`]: ./struct.RequestBuilder.html#method.messages
 //! [`new`]: ./struct.ChatMessage.html#method.new
-//! 
-//! 
-//! 
+//!
+//!
+//!
 //! ## Additional Notes
 //! The API is still in development, so there may be some breaking changes in the future.  
 //! The API is also not fully tested, so there may be some bugs.  
 //! There is a little bit of error handling, but it is not very robust.  
 //! [serde_json](https://docs.rs/serde_json/latest/serde_json/) is used to seralize and deserialize the responses and messages. Although since many are derived they may not match up with the exact API json responses.
-//! 
+//!
 
 #![allow(dead_code)]
 use std::{error::Error, fmt::Display};
 
-use serde_json::json;
 use async_trait::async_trait;
-use serde::{Deserialize};
 use once_cell::sync::OnceCell;
+use serde::Deserialize;
+use serde_json::json;
 
 pub mod chat;
 pub mod completion;
 
 static RQCLIENT: OnceCell<reqwest::Client> = OnceCell::new();
-static COMPLETION_URL: &'static str = "https://api.openai.com/v1/completions";
-static CHAT_URL: &'static str = "https://api.openai.com/v1/chat/completions";
+static COMPLETION_URL: &str = "https://api.openai.com/v1/completions";
+static CHAT_URL: &str = "https://api.openai.com/v1/chat/completions";
 
 #[async_trait]
 /// A trait for abstracting sending requests between APIs.
@@ -81,7 +81,7 @@ pub struct CompletionState;
 pub struct ChatState;
 #[derive(Debug, Clone)]
 /// The current completion models.
-pub enum CompletionModel{
+pub enum CompletionModel {
     TextDavinci003,
     TextDavinci002,
     CodeDavinci002,
@@ -102,7 +102,8 @@ impl ToString for CompletionModel {
             CompletionModel::TextDavinci003 => "text-davinci-003",
             CompletionModel::TextDavinci002 => "text-davinci-002",
             CompletionModel::CodeDavinci002 => "code-davinci-002",
-        }.to_string()
+        }
+        .to_string()
     }
 }
 
@@ -111,7 +112,8 @@ impl ToString for ChatModel {
         match self {
             ChatModel::Gpt35Turbo => "gpt-3.5-turbo",
             ChatModel::GPT35Turbo0301 => "gpt-3.5-turbo-0301",
-        }.to_string()
+        }
+        .to_string()
     }
 }
 
@@ -128,9 +130,10 @@ impl SendRequest for Request<CompletionState> {
     type Response = completion::CompletionResponse;
     type Error = Box<dyn Error>;
     async fn send(self) -> Result<Self::Response, Box<dyn Error>> {
-        let client = RQCLIENT.get_or_init(|| reqwest::Client::new());
+        let client = RQCLIENT.get_or_init(reqwest::Client::new);
 
-        let resp = client.post(COMPLETION_URL)
+        let resp = client
+            .post(COMPLETION_URL)
             .header("Content-Type", "application/json")
             .header("Authorization", self.api_key)
             .body(self.to_send)
@@ -146,7 +149,6 @@ impl SendRequest for Request<CompletionState> {
 
         Ok(completion::CompletionResponse::deserialize(json)?)
     }
-    
 }
 
 #[async_trait]
@@ -154,14 +156,14 @@ impl SendRequest for Request<ChatState> {
     type Response = chat::ChatResponse;
     type Error = Box<dyn Error>;
     async fn send(self) -> Result<Self::Response, Box<dyn Error>> {
-
-        if self.to_send.find("messages").is_none() {
+        if !self.to_send.contains("messages") {
             return Err("No messages in request.".into());
         }
 
-        let client = RQCLIENT.get_or_init(|| reqwest::Client::new());
+        let client = RQCLIENT.get_or_init(reqwest::Client::new);
 
-        let resp = client.post(CHAT_URL)
+        let resp = client
+            .post(CHAT_URL)
             .header("Content-Type", "application/json")
             .header("Authorization", self.api_key)
             .body(self.to_send)
@@ -206,8 +208,7 @@ pub struct RequestBuilder<T> {
 impl<C: CompletionLike> RequestBuilder<C> {
     /// Create a new request builder.
     pub fn new<T: ToString, S: Display>(model: T, api_key: S) -> Self {
-
-        let api_key = format!("Bearer {}", api_key);
+        let api_key = format!("Bearer {api_key}");
 
         let req = json!({
             "model": model.to_string(),
@@ -272,7 +273,7 @@ impl RequestBuilder<CompletionState> {
         Request {
             api_key: self.api_key,
             to_send: self.req.to_string(),
-            state: std::marker::PhantomData
+            state: std::marker::PhantomData,
         }
     }
 }
@@ -285,14 +286,10 @@ impl RequestBuilder<ChatState> {
     }
 
     fn chat_parameters(mut self, chat_parameters: chat::ChatParameters) -> Self {
-        self.req["temperature"] = json!(chat_parameters.temperature);
-        self.req["top_p"] = json!(chat_parameters.top_p);
-        self.req["frequency_penalty"] = json!(chat_parameters.frequency_penalty);
-        self.req["presence_penalty"] = json!(chat_parameters.presence_penalty);
-        self.req["max_tokens"] = json!(chat_parameters.max_tokens);
-        if let Some(user) = chat_parameters.user {
-            self.req["user"] = json!(user);
-        }
+        let mut params = json!(chat_parameters);
+        params["messages"] = self.req.get("messages").unwrap().clone();
+        params["model"] = self.req.get("model").unwrap().clone();
+        self.req = params;
         self
     }
 
@@ -301,7 +298,7 @@ impl RequestBuilder<ChatState> {
         Request {
             api_key: self.api_key,
             to_send: self.req.to_string(),
-            state: std::marker::PhantomData
+            state: std::marker::PhantomData,
         }
     }
 }
