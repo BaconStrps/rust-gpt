@@ -292,6 +292,8 @@ impl Chat {
         // + 2 because we don't count the system message and the message we're about to send
         if messages.len() * 2 + 2 >= self.len {
             messages.pop_front();
+            messages.pop_front();
+            // pop the oldest user + assistant message
         }
 
         messages.push_back(msg.clone());
