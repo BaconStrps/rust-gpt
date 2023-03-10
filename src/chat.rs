@@ -138,7 +138,7 @@ impl ChatBuilder {
         }
     }
 
-    /// Sets the amount of messages that are stored in the chat session.
+    /// Sets the amount of user messages that are stored in the chat session.
     pub fn len(mut self, len: usize) -> Self {
         self.len = len;
         self
