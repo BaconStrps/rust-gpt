@@ -180,9 +180,9 @@ impl SendRequest for Request<CompletionState> {
         let body = resp.text().await.unwrap();
         let json: serde_json::Value = serde_json::from_str(&body).unwrap();
 
-        let response = match completion::CompletionResponse::deserialize(json) {
+        let response = match completion::CompletionResponse::deserialize(json.clone()) {
             Ok(r) => r,
-            Err(e) => return Err(JsonError(JsonParseError { json_string: e.to_string() })),
+            Err(_) => return Err(JsonError(JsonParseError { json_string: serde_json::to_string_pretty(&json).unwrap() })),
         };
 
         Ok(response)
@@ -219,9 +219,9 @@ impl SendRequest for Request<ChatState> {
             return Err(OpenAiError(serde_json::to_string_pretty(&json).unwrap().into()));
         }
 
-        let response = match chat::ChatResponse::deserialize(json) {
+        let response = match chat::ChatResponse::deserialize(json.clone()) {
             Ok(r) => r,
-            Err(e) => return Err(JsonError(JsonParseError { json_string: e.to_string() })),
+            Err(_) => return Err(JsonError(JsonParseError { json_string: serde_json::to_string_pretty(&json).unwrap() })),
         };
 
         Ok(response)
