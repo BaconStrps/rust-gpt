@@ -64,13 +64,14 @@ static COMPLETION_URL: &str = "https://api.openai.com/v1/completions";
 static CHAT_URL: &str = "https://api.openai.com/v1/chat/completions";
 
 #[derive(Debug, Clone)]
-struct JsonParseError {
+pub struct JsonParseError {
     json_string: String,
 }
 
 #[derive(Debug)]
-enum SendRequestError {
+pub enum SendRequestError {
     ReqwestError(reqwest::Error),
+    OpenAiError(String),
     JsonError(JsonParseError),
 }
 
@@ -78,6 +79,7 @@ impl Display for SendRequestError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             SendRequestError::ReqwestError(e) => write!(f, "Reqwest error: {}", e),
+            SendRequestError::OpenAiError(e) => write!(f, "OpenAI error: {}", e),
             SendRequestError::JsonError(e) => write!(f, "Json error: {}", e),
         }
     }
@@ -90,6 +92,12 @@ impl Display for JsonParseError {
 }
 
 impl Error for SendRequestError {}
+
+impl From<reqwest::Error> for SendRequestError {
+    fn from(e: reqwest::Error) -> Self {
+        SendRequestError::ReqwestError(e)
+    }
+}
 
 #[async_trait]
 /// A trait for abstracting sending requests between APIs.
@@ -156,8 +164,9 @@ pub struct Request<T> {
 #[async_trait]
 impl SendRequest for Request<CompletionState> {
     type Response = completion::CompletionResponse;
-    type Error = Box<dyn Error>;
-    async fn send(self) -> Result<Self::Response, Box<dyn Error>> {
+    type Error = SendRequestError;
+    async fn send(self) -> Result<Self::Response, Self::Error> {
+        use SendRequestError::*;
         let client = RQCLIENT.get_or_init(reqwest::Client::new);
 
         let resp = client
@@ -171,21 +180,26 @@ impl SendRequest for Request<CompletionState> {
         let body = resp.text().await.unwrap();
         let json: serde_json::Value = serde_json::from_str(&body).unwrap();
 
-        if !json["error"].is_null() {
-            return Err(serde_json::to_string_pretty(&json).unwrap().into());
-        }
+        let response = match completion::CompletionResponse::deserialize(json) {
+            Ok(r) => r,
+            Err(e) => return Err(JsonError(JsonParseError { json_string: e.to_string() })),
+        };
 
-        Ok(completion::CompletionResponse::deserialize(json)?)
+        Ok(response)
     }
 }
 
 #[async_trait]
 impl SendRequest for Request<ChatState> {
     type Response = chat::ChatResponse;
-    type Error = Box<dyn Error>;
-    async fn send(self) -> Result<Self::Response, Box<dyn Error>> {
+    type Error = SendRequestError;
+
+    
+    async fn send(self) -> Result<Self::Response, SendRequestError> {
+        use SendRequestError::*;
+
         if !self.to_send.contains("messages") {
-            return Err("No messages in request.".into());
+            return Err(OpenAiError("No messages in request.".into()));
         }
 
         let client = RQCLIENT.get_or_init(reqwest::Client::new);
@@ -202,12 +216,15 @@ impl SendRequest for Request<ChatState> {
         let json: serde_json::Value = serde_json::from_str(&body).unwrap();
 
         if !json["error"].is_null() {
-            return Err(serde_json::to_string_pretty(&json).unwrap().into());
+            return Err(OpenAiError(serde_json::to_string_pretty(&json).unwrap().into()));
         }
 
-        
+        let response = match chat::ChatResponse::deserialize(json) {
+            Ok(r) => r,
+            Err(e) => return Err(JsonError(JsonParseError { json_string: e.to_string() })),
+        };
 
-        Ok(chat::ChatResponse::deserialize(json)?)
+        Ok(response)
 
         // Ok(ChatResponse {
         //     id: json["id"].as_str().unwrap().to_string(),
