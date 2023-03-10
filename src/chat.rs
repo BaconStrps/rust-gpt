@@ -45,7 +45,7 @@ pub struct Usage {
 pub struct ChatChoice {
     pub index: u32,
     pub message: ChatMessage,
-    pub finish_reason: String,
+    pub finish_reason: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -216,22 +216,6 @@ pub struct ChatParameters {
     pub user: Option<String>,
 }
 
-// impl Serialize for ChatParameters {
-//     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-//     where
-//         S: serde::Serializer,
-//     {
-//         let mut state = serializer.serialize_struct("ChatParameters", 6)?;
-//         state.serialize_field("temperature", &self.temperature)?;
-//         state.serialize_field("max_tokens", &self.max_tokens)?;
-//         state.serialize_field("top_p", &self.top_p)?;
-//         state.serialize_field("presence_penalty", &self.presence_penalty)?;
-//         state.serialize_field("frequency_penalty", &self.frequency_penalty)?;
-//         state.serialize_field("user", &self.user)?;
-//         state.end()
-//     }
-// }
-
 /// A struct that represents a chat session
 /// This struct makes it easy to interact with the chat api, as well as remembering messages.
 /// This struct guarantees that messages are sent and stored in the order that [`ask`] is called.
@@ -306,7 +290,7 @@ impl Chat {
 
         // * 2 because we don't count assistant messages
         // + 2 because we don't count the system message and the message we're about to send
-        if (messages.len() + 2) * 2 >= self.len {
+        if messages.len() * 2 + 2 >= self.len {
             messages.pop_front();
         }
 
