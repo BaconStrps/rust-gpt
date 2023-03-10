@@ -280,6 +280,10 @@ impl Chat {
 
     /// Sends the message history to the API including the last question asked, and returns the response.
     pub async fn get_response(&self, user: Option<String>) -> Result<ChatMessage, Box<dyn Error>> {
+
+        // the pushing and popping is in reverse order because we want to order the messages
+        // in the API from oldest to newest.
+
         let msg = if let Some(message) = self.message_queue.lock().await.pop_front() {
             message
         } else {
@@ -288,8 +292,6 @@ impl Chat {
 
         let mut messages = self.messages.lock().await;
 
-        // * 2 because we don't count assistant messages
-        // + 2 because we don't count the system message and the message we're about to send
         if messages.len() >= self.len {
             messages.pop_front();
             messages.pop_front();
@@ -313,7 +315,13 @@ impl Chat {
 
         let req = builder.build_chat();
 
-        let resp = req.send().await?;
+        let resp = match req.send().await {
+            Ok(resp) => resp,
+            Err(e) => {
+                messages.pop_back(); // remove the message we just added
+                return Err(e.into());
+            }
+        };
 
         let message = resp.choices[0].message.clone();
 
