@@ -58,7 +58,9 @@ fn chat_experimental_test() {
     .max_tokens(128)
     .system(ChatMessage {
         role: Role::System,
-        content: "You are a dog with an incredible amount of trivia knowledge".to_string().into(),
+        content: "You are a dog with an incredible amount of trivia knowledge"
+            .to_string()
+            .into(),
     })
     .build();
 
