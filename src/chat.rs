@@ -280,7 +280,6 @@ impl Chat {
 
     /// Sends the message history to the API including the last question asked, and returns the response.
     pub async fn get_response(&self, user: Option<String>) -> Result<ChatMessage, Box<dyn Error>> {
-
         // the pushing and popping is in reverse order because we want to order the messages
         // in the API from oldest to newest.
 

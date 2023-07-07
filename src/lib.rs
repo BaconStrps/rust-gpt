@@ -126,7 +126,10 @@ pub enum CompletionModel {
 /// The current chat models.
 pub enum ChatModel {
     Gpt35Turbo,
-    GPT35Turbo0301,
+    Gpt35Turbo0301,
+    Gpt35Turbo16k,
+    Gpt4,
+    Gpt4_32k,
 }
 
 impl CompletionLike for CompletionState {}
@@ -147,7 +150,10 @@ impl ToString for ChatModel {
     fn to_string(&self) -> String {
         match self {
             ChatModel::Gpt35Turbo => "gpt-3.5-turbo",
-            ChatModel::GPT35Turbo0301 => "gpt-3.5-turbo-0301",
+            ChatModel::Gpt35Turbo0301 => "gpt-3.5-turbo-0301",
+            ChatModel::Gpt35Turbo16k => "gpt-3.5-turbo-16k",
+            ChatModel::Gpt4 => "gpt-4",
+            ChatModel::Gpt4_32k => "gpt-4-32k",
         }
         .to_string()
     }
@@ -182,7 +188,11 @@ impl SendRequest for Request<CompletionState> {
 
         let response = match completion::CompletionResponse::deserialize(json.clone()) {
             Ok(r) => r,
-            Err(_) => return Err(JsonError(JsonParseError { json_string: serde_json::to_string_pretty(&json).unwrap() })),
+            Err(_) => {
+                return Err(JsonError(JsonParseError {
+                    json_string: serde_json::to_string_pretty(&json).unwrap(),
+                }))
+            }
         };
 
         Ok(response)
@@ -194,7 +204,6 @@ impl SendRequest for Request<ChatState> {
     type Response = chat::ChatResponse;
     type Error = SendRequestError;
 
-    
     async fn send(self) -> Result<Self::Response, SendRequestError> {
         use SendRequestError::*;
 
@@ -216,12 +225,18 @@ impl SendRequest for Request<ChatState> {
         let json: serde_json::Value = serde_json::from_str(&body).unwrap();
 
         if !json["error"].is_null() {
-            return Err(OpenAiError(serde_json::to_string_pretty(&json).unwrap().into()));
+            return Err(OpenAiError(
+                serde_json::to_string_pretty(&json).unwrap().into(),
+            ));
         }
 
         let response = match chat::ChatResponse::deserialize(json.clone()) {
             Ok(r) => r,
-            Err(_) => return Err(JsonError(JsonParseError { json_string: serde_json::to_string_pretty(&json).unwrap() })),
+            Err(_) => {
+                return Err(JsonError(JsonParseError {
+                    json_string: serde_json::to_string_pretty(&json).unwrap(),
+                }))
+            }
         };
 
         Ok(response)
